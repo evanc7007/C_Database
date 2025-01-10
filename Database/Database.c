@@ -1,6 +1,6 @@
 //part 7 finished
 //start with part 8
-//cd "c:\cisp\C\Projects\" ; if ($?) { gcc Database.c -o Database } ; if ($?) { .\Database data.db}
+//cd "c:\cisp\C\Projects\Database\" ; if ($?) { gcc Database.c -o Database } ; if ($?) { .\Database data.db}
 
 #include <errno.h>
 #include <fcntl.h>
