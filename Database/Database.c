@@ -1,5 +1,5 @@
-//part 10 finished
-//start with part 11
+//part 11 finished
+//start with part 12
 //cd "c:\cisp\C\Projects\Database\" ; if ($?) { gcc Database.c -o Database } ; if ($?) { .\Database data.db}
 
 #include <errno.h>
@@ -178,6 +178,7 @@ bool is_node_root(void*);
 void set_node_root(void*, bool);
 void indent(uint32_t);
 void print_tree(Pager*, uint32_t, uint32_t);
+Cursor* internal_node_find(Table*, uint32_t, uint32_t);
 
 
 int main(int argc, char* argv[]){
@@ -553,8 +554,7 @@ Cursor* table_find(Table* table, uint32_t key){
     if(get_node_type(root_node) == NODE_LEAF){
         return leaf_node_find(table, root_page_num, key);
     } else{
-        printf("Need to implement searching an internal node\n");
-        exit(EXIT_FAILURE);
+        return internal_node_find(table, root_page_num, key);
     }
 }
 
@@ -825,5 +825,33 @@ void print_tree(Pager* pager, uint32_t page_num, uint32_t indentation_level){
             child = *internal_node_right_child(node);
             print_tree(pager, child, indentation_level + 1);
             break;
+    }
+}
+
+Cursor* internal_node_find(Table* table, uint32_t page_num, uint32_t key){
+    void* node = get_page(table->pager, page_num);
+    uint32_t num_keys = *internal_node_num_keys(node);
+
+    //binary search to find index of child to search
+    uint32_t min_index = 0;
+    uint32_t max_index = num_keys; //there is one more child than key
+
+    while(min_index != max_index){
+        uint32_t index = (min_index + max_index) / 2;
+        uint32_t key_to_right = *internal_node_key(node, index);
+        if(key_to_right >= key){
+            max_index = index;
+        } else{
+            min_index = index + 1;
+        }
+    }
+    uint32_t child_num =  *internal_node_child(node, min_index);
+    void* child = get_page(table->pager, child_num);
+    switch(get_node_type(child)){
+        case NODE_LEAF:
+            return leaf_node_find(table, child_num, key);
+
+        case NODE_INTERNAL:
+            return internal_node_find(table, child_num, key);
     }
 }
