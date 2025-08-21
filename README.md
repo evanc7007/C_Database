@@ -1,5 +1,5 @@
 # C_Database
-This is an small SQLite clone project that I explored to further my knowledge of C and Storage Systems. The database uses a B-Tree system to store the information. There are only three columns: ID, USERNAME, EMAIL.
+This is a small SQLite clone project that I explored to further my knowledge of C and Storage Systems. The database uses a B-Tree system to store the information. There are only three columns: ID, USERNAME, EMAIL.
 
 # Running the Program
 Go to the directory that houses the executable. Running this command will compile and run the program, along with creating a data.db file.
