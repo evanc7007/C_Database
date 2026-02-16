@@ -41,7 +41,8 @@ typedef struct{
 typedef enum{
     EXECUTE_SUCCESS,
     EXECUTE_DUPLICATE_KEY,
-    EXECUTE_TABLE_FULL
+    EXECUTE_TABLE_FULL,
+    EXECUTE_KEY_NOT_FOUND
 } ExecuteResult;
 
 typedef enum{
@@ -59,7 +60,8 @@ typedef enum{
 
 typedef enum{
     STATEMENT_INSERT,
-    STATEMENT_SELECT
+    STATEMENT_SELECT,
+    STATEMENT_DELETE
 } StatementType;
 
 typedef struct{
@@ -138,6 +140,15 @@ const uint32_t INTERNAL_NODE_CELL_SIZE = INTERNAL_NODE_CHILD_SIZE + INTERNAL_NOD
 //keep this small for testing
 const uint32_t INTERNAL_NODE_MAX_CELLS = 3;
 
+void* safe_malloc(size_t size) {
+    void* ptr = malloc(size);
+    if (ptr == NULL) {
+        printf("Error: malloc failed.\n");
+        exit(EXIT_FAILURE);
+    }
+    return ptr;
+}
+
 //all functions
 InputBuffer* new_input_buffer();
 void print_prompt();
@@ -145,9 +156,12 @@ void read_input(InputBuffer*);
 void close_input_buffer(InputBuffer*);
 MetaCommandResult do_meta_command(InputBuffer*, Table*);
 PrepareResult prepare_insert(InputBuffer*, Statement*);
+PrepareResult prepare_delete(InputBuffer*, Statement*);
 PrepareResult prepare_statement(InputBuffer*, Statement*);
 ExecuteResult execute_insert(Statement*, Table*);
 ExecuteResult execute_select(Statement*, Table*);
+ExecuteResult execute_delete(Statement*, Table*);
+void leaf_node_delete(void*, uint32_t);
 ExecuteResult execute_statement(Statement*, Table*);
 void print_row(Row*);
 void serialize_row(Row*, void*);
@@ -253,14 +267,18 @@ int main(int argc, char* argv[]){
             case (EXECUTE_TABLE_FULL):
                 printf("Error: Table full.\n");
                 break;
+
+            case (EXECUTE_KEY_NOT_FOUND):
+                printf("Error: Key not found.\n");
+                break;
         }
     }
 }
 
 InputBuffer* new_input_buffer(){
-    InputBuffer *input_buffer = (InputBuffer*)malloc(sizeof(InputBuffer));
-    input_buffer->buffer_length = 1024;    
-    input_buffer->buffer = (char*)malloc(input_buffer->buffer_length);
+    InputBuffer *input_buffer = (InputBuffer*)safe_malloc(sizeof(InputBuffer));
+    input_buffer->buffer_length = 1024;
+    input_buffer->buffer = (char*)safe_malloc(input_buffer->buffer_length);
     input_buffer->input_length = 0;
 
     return input_buffer;
@@ -282,6 +300,11 @@ if (fgets(input_buffer->buffer, input_buffer->buffer_length, stdin) == NULL) {
         input_buffer->buffer[input_buffer->input_length - 1] = '\0';
         input_buffer->input_length--;
     }
+    if (input_buffer->input_length > 0 &&
+        input_buffer->buffer[input_buffer->input_length - 1] == '\r') {
+        input_buffer->buffer[input_buffer->input_length - 1] = '\0';
+        input_buffer->input_length--;
+    }
 }
 
 void close_input_buffer(InputBuffer* input_buffer){
@@ -292,7 +315,19 @@ void close_input_buffer(InputBuffer* input_buffer){
 MetaCommandResult do_meta_command(InputBuffer* input_buffer, Table* table){
     if(strcmp(input_buffer->buffer, ".exit") == 0){
         db_close(table);
+        close_input_buffer(input_buffer);
         exit(EXIT_SUCCESS);
+    } else if(strcmp(input_buffer->buffer, ".help") == 0){
+        printf("Commands:\n");
+        printf("  .exit       - Close the database and exit\n");
+        printf("  .btree      - Print the B-tree structure\n");
+        printf("  .constants  - Print internal constants\n");
+        printf("  .help       - Show this help\n");
+        printf("SQL:\n");
+        printf("  insert <id> <username> <email> - Insert a row\n");
+        printf("  select                         - Print all rows\n");
+        printf("  delete <id>                    - Delete a row\n");
+        return META_COMMAND_SUCCESS;
     } else if(strcmp(input_buffer->buffer, ".btree") == 0){
         printf("Tree:\n");
         print_tree(table->pager, 0, 0);
@@ -336,9 +371,32 @@ PrepareResult prepare_insert(InputBuffer* input_buffer, Statement* statement){
     return PREPARE_SUCCESS;
 }
 
+PrepareResult prepare_delete(InputBuffer* input_buffer, Statement* statement){
+    statement->type = STATEMENT_DELETE;
+
+    char* keyword = strtok(input_buffer->buffer, " ");
+    char* id_string = strtok(NULL, " ");
+
+    if(id_string == NULL){
+        return PREPARE_SYNTAX_ERROR;
+    }
+
+    int id = atoi(id_string);
+    if(id < 0){
+        return PREPARE_NEGATIVE_ID;
+    }
+
+    statement->row_to_insert.id = id;
+
+    return PREPARE_SUCCESS;
+}
+
 PrepareResult prepare_statement(InputBuffer* input_buffer, Statement* statement){
     if(strncmp(input_buffer->buffer, "insert", 6) == 0){
         return prepare_insert(input_buffer, statement);
+    }
+    if(strncmp(input_buffer->buffer, "delete", 6) == 0){
+        return prepare_delete(input_buffer, statement);
     }
     if(strcmp(input_buffer->buffer, "select") == 0){
         statement->type = STATEMENT_SELECT;
@@ -387,13 +445,35 @@ ExecuteResult execute_select(Statement* statement, Table* table){
     return EXECUTE_SUCCESS;
 }
 
+ExecuteResult execute_delete(Statement* statement, Table* table){
+    uint32_t key = statement->row_to_insert.id;
+    Cursor* cursor = table_find(table, key);
+
+    void* node = get_page(table->pager, cursor->page_num);
+    uint32_t num_cells = *leaf_node_num_cells(node);
+
+    if(cursor->cell_num >= num_cells ||
+       *leaf_node_key(node, cursor->cell_num) != key){
+        free(cursor);
+        return EXECUTE_KEY_NOT_FOUND;
+    }
+
+    leaf_node_delete(node, cursor->cell_num);
+
+    free(cursor);
+
+    return EXECUTE_SUCCESS;
+}
+
 ExecuteResult execute_statement(Statement* statement, Table* table){
     switch(statement->type){
         case (STATEMENT_INSERT):
             return execute_insert(statement, table);
         case (STATEMENT_SELECT):
             return execute_select(statement, table);
-    }       
+        case (STATEMENT_DELETE):
+            return execute_delete(statement, table);
+    }
 }
 
 void print_row(Row* row){
@@ -421,7 +501,7 @@ void* cursor_value(Cursor* cursor){
 Table* db_open(const char* filename){
     Pager* pager = pager_open(filename);
 
-    Table* table = (Table*)malloc(sizeof(Table));
+    Table* table = (Table*)safe_malloc(sizeof(Table));
     table->pager = pager;
     table->root_page_num = 0;
 
@@ -478,7 +558,7 @@ Pager* pager_open(const char* filename){
 
     off_t file_length = lseek(fd, 0, SEEK_END);
 
-    Pager* pager = malloc(sizeof(Pager));
+    Pager* pager = safe_malloc(sizeof(Pager));
     pager->file_descriptor = fd;
     pager->file_length = file_length;
     pager->num_pages = (file_length / PAGE_SIZE);
@@ -502,7 +582,7 @@ void* get_page(Pager* pager, uint32_t page_num){
 
     if(pager->pages[page_num] == NULL){
         //Cache miss. Allocate memory and load from file.
-        void* page = malloc(PAGE_SIZE);
+        void* page = safe_malloc(PAGE_SIZE);
         uint32_t num_pages = pager->file_length / PAGE_SIZE;
 
         //might save a partial page at end of file
@@ -643,6 +723,17 @@ void leaf_node_insert(Cursor* cursor, uint32_t key, Row* value){
     serialize_row(value, leaf_node_value(node, cursor->cell_num));
 }
 
+void leaf_node_delete(void* node, uint32_t cell_num){
+    uint32_t num_cells = *leaf_node_num_cells(node);
+
+    //shift cells left to overwrite the deleted cell
+    for(uint32_t i = cell_num; i < num_cells - 1; i++){
+        memcpy(leaf_node_cell(node, i), leaf_node_cell(node, i + 1), LEAF_NODE_CELL_SIZE);
+    }
+
+    *(leaf_node_num_cells(node)) -= 1;
+}
+
 void print_constants(){
     printf("ROW_SIZE: %d\n", ROW_SIZE);
     printf("COMMON_NODE_HEADER_SIZE: %d\n", COMMON_NODE_HEADER_SIZE);
@@ -656,7 +747,7 @@ Cursor* leaf_node_find(Table* table, uint32_t page_num, uint32_t key){
     void* node = get_page(table->pager, page_num);
     uint32_t num_cells = *leaf_node_num_cells(node);
 
-    Cursor* cursor = malloc(sizeof(Cursor));
+    Cursor* cursor = safe_malloc(sizeof(Cursor));
     cursor->table = table;
     cursor->page_num = page_num;
 
