@@ -10,6 +10,7 @@ This SQLite clone implements three meta-commands along with three SQL statements
 - .exit: exits the program gracefully
 - .btree: lists out the tree and structure of the data stored
 - .constants: lists sizes of rows, common nodes, leaf nodes, etc.
+- .help: displays a help message with all the commands
 - SELECT: prints all the entries of the table
 - INSERT: inserts a new entry into the table using the format
   `INSERT ID USERNAME EMAIL`
