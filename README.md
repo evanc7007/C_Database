@@ -5,6 +5,9 @@ This is a small SQLite clone project that I explored to further my knowledge of 
 Go to the directory that houses the executable. Running this command will compile and run the program, along with creating a data.db file.
   `if ($?) { gcc Database.c -o Database } ; if ($?) { .\Database data.db}`
 
+# Running the Program - Linux
+From the main directory, run `make` to build and `make run` to run the application using a storage file `data.db`
+
 # Implemented Commands
 This SQLite clone implements three meta-commands along with three SQL statements.
 - .exit: exits the program gracefully
