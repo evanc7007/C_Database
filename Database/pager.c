@@ -2,11 +2,11 @@
 
 Pager* pager_open(const char* filename){
     int fd = open(filename,
-                    O_RDWR |
-                        O_CREAT |
-                        O_BINARY,
-                    S_IWUSR |
-                        S_IRUSR
+                    O_RDWR |           //reading and writing
+                        O_CREAT |      //create if not exist
+                        O_BINARY,      //for windows, handle in binary
+                    S_IWUSR |          //user write
+                        S_IRUSR        //user read
                     );
     if (fd == -1) {
         printf("Unable to open file\n");

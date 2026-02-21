@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+//representation of a row
 extern const uint32_t ID_SIZE;
 extern const uint32_t USERNAME_SIZE;
 extern const uint32_t EMAIL_SIZE;
