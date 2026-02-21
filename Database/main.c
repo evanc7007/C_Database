@@ -1,5 +1,3 @@
-//cd "c:\cisp\C\Projects\Database\" ; if ($?) { gcc Database.c -o Database } ; if ($?) { .\Database data.db}
-
 #include "common.h"
 #include "input.h"
 #include "table.h"
