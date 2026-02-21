@@ -1,4 +1,5 @@
 //cd "c:\cisp\C\Projects\Database\" ; if ($?) { gcc Database.c -o Database } ; if ($?) { .\Database data.db}
+//unmodularized version of database file
 
 #include <errno.h>
 #include <fcntl.h>

@@ -6,12 +6,12 @@ CC=gcc
 CFLAGS=-std=c17 -g3
 VPATH=Database
 
+OBJS = main.o constants.o input.o row.o pager.o btree.o table.o cursor.o statement.o
+
 all: database
 
-database: Database.o
+database: $(OBJS)
 	${CC} ${CFLAGS} -o $@ $^ -lm
-
-Database.o: Database.c
 
 run:
 	./database data.db
@@ -19,5 +19,5 @@ run:
 wipe:
 	rm -f data.db
 
-clean: 
+clean:
 	rm -f database *.o
