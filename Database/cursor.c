@@ -18,7 +18,6 @@ Cursor* table_start(Table* table){
     return cursor;
 }
 
-//return position of given key, if not present, returne positon where it should be inserted
 Cursor* table_find(Table* table, uint32_t key){
     uint32_t root_page_num = table->root_page_num;
     void* root_node = get_page(table->pager, root_page_num);

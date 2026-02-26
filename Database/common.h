@@ -105,6 +105,9 @@ typedef struct{
     Row row_to_insert; // only used by insert statement
 } Statement;
 
+/**
+ * a cursor to point to a node
+ */
 typedef struct{
     Table* table;
     uint32_t page_num;
@@ -112,6 +115,9 @@ typedef struct{
     bool end_of_table; //indicates position one past the last element
 } Cursor;
 
+/**
+ * keep track of the two node types
+ */
 typedef enum{
     NODE_INTERNAL,
     NODE_LEAF
